@@ -42,7 +42,7 @@ def nxtovtk(G):
     return grid
 
 def vtktonx(data):
-    data = copynonzerocolor(data)
+    data = cpnonzerocolor(data)
     G = nx.Graph() # change to multigraph if structure needs to be consistent
 
     #nodeids = np.array([[0,data.GetCell(0).GetPointId(0)]])
@@ -97,7 +97,7 @@ def cpnonzerocolor(data):
     print "Number of nodes in clipped subvolume:\t",extractor.GetOutput().GetNumberOfPoints()
     print "Number of egdes in clipped subvolume:\t",extractor.GetOutput().GetNumberOfCells()
     # rearrange the id's of the cells and points - consecutive increasing ids
-    #extracted = extractor.GetOutput()
+    # extracted = extractor.GetOutput()
     #for i in range(extracted.GetNumberOfCells):
     print "...extracted zerocolor cells."
 #    print "Number of points after extraction:\t",extractor.GetOutput().GetNumberOfPoints()
