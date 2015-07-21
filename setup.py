@@ -18,13 +18,11 @@ setup(name='DDDutils',
       description='DDD postprocessing routines in python',
 
       # URL
-      url = "git@github.com:mastricker/DDDutils.git"
+      url = "git@github.com:mastricker/DDDutils.git",
       
       # Author
       author='Markus Stricker',
       author_email='mail@markusstricker.de',
-
-      packages=['distutils', 'distutils.command'],
 
       license='MIT',
 
@@ -39,9 +37,9 @@ setup(name='DDDutils',
 
       ],
 
-      keywords='DDD, KIT, postprocessing'
+      keywords='DDD, KIT, postprocessing',
 
-      packages = find_packages()
+      packages = find_packages(),
      )
 
 
