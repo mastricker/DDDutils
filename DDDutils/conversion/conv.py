@@ -17,7 +17,7 @@ def nxtovtk(G):
     cell_data color scalars
 
     !!!-----------------------------------------------------------
-    rearrange indeces before converting to vtk!!!!!!!!!!!!!!!!!!!!
+    rearrange indices before converting to vtk!!!!!!!!!!!!!!!!!!!!
     !!!-----------------------------------------------------------
     """
 
@@ -27,7 +27,7 @@ def nxtovtk(G):
     grid = vtk.vtkUnstructuredGrid()
     points = vtk.vtkPoints()
     points.SetNumberOfPoints(len(G.nodes()))
-    print G.nodes()
+    #print G.nodes()
     nodeids = np.array([[0,G.nodes()[0]]])
 #    colors = vtk.vtkUnsignedCharArray()
 #    colors.SetNumberOfComponents(4)
@@ -60,10 +60,11 @@ def nxtovtk(G):
                     break
                 else:
                     n += 1               
-#            print nodeid
+#            print nodeidnew
             id_list.InsertNextId(nodeidnew)
             cell_type = 3
         grid.InsertNextCell(cell_type, id_list)
+        #print "added edge"
         id_list.Reset()
     print "\t\t Done."
     print "Conversion done."
@@ -77,10 +78,23 @@ def vtktonx(data):
     #nodeids = np.array([[0,data.GetCell(0).GetPointId(0)]])
     #print "Point id0 of cell 0:\t", data.GetCell(0).GetPointId(0)
     #idcntr = 1
+    normal_colors = data.GetCellData().GetScalars()
+    ar0 = data.GetCellData().GetArray(0) # coloring for normals
+    ar1 = data.GetCellData().GetArray(1) # dislocation character
+    ar2 = data.GetCellData().GetArray(2) # burgers index
+    ar3 = data.GetCellData().GetArray(3) # normal index
+#    ar4 = data.GetCellData().GetArray(4) # cell ID
+    
     for i in range(data.GetNumberOfCells()):
         #print "colored:\t", i
-        #print colors.GetTuple(i)
+        print normal_colors.GetTuple(i)
+        print "0", ar0.GetTuple(i)
+        print "1", ar1.GetTuple(i)
+        print "2", ar2.GetTuple(i)
+        print "3", ar3.GetTuple(i)
+        
         cell = data.GetCell(i)
+
         id0 = cell.GetPointId(0)
         p1 = data.GetPoint(id0)
         id1 = cell.GetPointId(1)
@@ -95,7 +109,11 @@ def vtktonx(data):
         G.node[int(id1)]['x'] = float('%.4f' % p2[0])
         G.node[int(id1)]['y'] = float('%.4f' % p2[1])
         G.node[int(id1)]['z'] = float('%.4f' % p2[2])
-        G.add_edge(int(id0),int(id1), length = distance)
+        G.add_edge(int(id0),int(id1), length = distance,
+                   normal_color = ar0.GetTuple(i),
+                   disloc_char = ar1.GetTuple(i),
+                   burgers_index = ar2.GetTuple(i),
+                   normal_index = ar3.GetTuple(i))
     #print G.nodes()
     print "...converted vtk to nx.Graph"
     #print nodeids
@@ -110,7 +128,7 @@ def cpnonzerocolor(data):
     count = 0
     # Get indices from nonzero colored cells
     for i in range(data.GetNumberOfCells()):
-        if colors.GetTuple(i) != (0.0, 0.0, 0.0, 0.0):
+        if ( colors.GetTuple(i) != (0.0, 0.0, 0.0, 0.0) ):
             CellIdList.InsertId(count, i)
             count = count + 1
 #            print "Number Of cell:\t",i
@@ -126,9 +144,7 @@ def cpnonzerocolor(data):
     print "Number of nodes in clipped subvolume:\t",extractor.GetOutput().GetNumberOfPoints()
     print "Number of egdes in clipped subvolume:\t",extractor.GetOutput().GetNumberOfCells()
     # rearrange the id's of the cells and points - consecutive increasing ids
-    # extracted = extractor.GetOutput()
-    #for i in range(extracted.GetNumberOfCells):
+
     print "...extracted zerocolor cells."
-#    print "Number of points after extraction:\t",extractor.GetOutput().GetNumberOfPoints()
-#    print "Number of cells after extraction:\t",extractor.GetOutput().GetNumberOfCells()
+    
     return extractor.GetOutput()
