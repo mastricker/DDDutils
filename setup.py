@@ -14,7 +14,13 @@ here = path.abspath(path.dirname(__file__))
 
 setup(name='DDDutils',
       version='1.0',
+      
       description='DDD postprocessing routines in python',
+
+      # URL
+      url = "git@github.com:mastricker/DDDutils.git"
+      
+      # Author
       author='Markus Stricker',
       author_email='mail@markusstricker.de',
 
