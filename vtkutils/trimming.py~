@@ -1,5 +1,0 @@
-import vtk
-
-"""
-Helper functions for clipping vtk geometries
-"""
