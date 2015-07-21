@@ -35,7 +35,7 @@ setup(name='DDDutils',
 
       keywords='DDD, KIT, postprocessing'
 
-      packages = 
+      packages = find_packages
      )
 
 
