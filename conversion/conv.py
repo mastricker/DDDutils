@@ -9,37 +9,66 @@ Helper functions to change data from one format to another
 
 def nxtovtk(G):
 
-    # convert graph labels to consecutive integers for vtk numbering
-    # does not keep up with the connection data
-    G = nx.convert_node_labels_to_integers(G, first_label=0)
+    """
+    input: networkx MultiGraph
+    output: vtk data, POINTS + CELLS
+    nodes attributes: position
+    edge attributes: distance between nodes
+    cell_data color scalars
+
+    !!!-----------------------------------------------------------
+    rearrange indeces before converting to vtk!!!!!!!!!!!!!!!!!!!!
+    !!!-----------------------------------------------------------
+    """
+
     
+    print "Converting graph to vtk-object:"
     # instanciate vtk object
     grid = vtk.vtkUnstructuredGrid()
     points = vtk.vtkPoints()
     points.SetNumberOfPoints(len(G.nodes()))
-    
+    print G.nodes()
+    nodeids = np.array([[0,G.nodes()[0]]])
 #    colors = vtk.vtkUnsignedCharArray()
 #    colors.SetNumberOfComponents(4)
 #    colors.SetName(seg_colors)
-        
-    # convert node data to points
-    for n in G.nodes():
-        points.InsertPoint(n, (G.node[n]['x'], G.node[n]['y'], G.node[n]['z']))
-        #print n, G.node[n]['x'], G.node[n]['y'], G.node[n]['z']
-    grid.SetPoints(points)
 
+    # get new node ids for consecutive node numbering
+    print "\t Storing new node Id's..."
+    for i in range(len(G.nodes())):
+        nodenr = G.nodes()[i]
+        points.InsertPoint(i, (G.node[nodenr]['x'], G.node[nodenr]['y'], G.node[nodenr]['z']))
+        if i == 0:
+            pass
+        else:
+            new_col = np.array([i,G.nodes()[i]])
+            nodeids = np.vstack((nodeids,new_col))
+    #print nodeids
+    grid.SetPoints(points)
+    print "\t\t Done."
     # convert edge data to lines and add to grid
+    # with checking for new node ids to keep the network data consistent
+    print "\t Remapping edges with new Id's..."
     for m in G.edges():
         id_list=vtk.vtkIdList()
 #        print m
-        for nodeid in m:
+        for nodeidold in m:
+            n = 0
+            while n <= range(len(nodeids[:,1])):
+                if nodeidold == nodeids[n,1]:
+                    nodeidnew = nodeids[n,0]
+                    break
+                else:
+                    n += 1               
 #            print nodeid
-            id_list.InsertId(6, nodeid)
+            id_list.InsertNextId(nodeidnew)
             cell_type = 3
         grid.InsertNextCell(cell_type, id_list)
         id_list.Reset()
-    print "...converted nx.Graph to vtk object"
+    print "\t\t Done."
+    print "Conversion done."
     return grid
+
 
 def vtktonx(data):
     data = cpnonzerocolor(data)
