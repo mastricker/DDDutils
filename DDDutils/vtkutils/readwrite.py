@@ -1,7 +1,7 @@
 import vtk
 
 """
-Helper functions to read and write vtk files
+Helper functions to read and write vtk files.
 """
 
 # read vtkfile, return data + info for visual feedback
