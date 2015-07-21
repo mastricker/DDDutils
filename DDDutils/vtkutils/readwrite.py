@@ -19,6 +19,6 @@ def read(filename):
 def write(data,filename):
     writer = vtk.vtkDataSetWriter()
     writer.SetFileName(filename + ".vtk")
-    writer.SetInput(data)
+    writer.SetInputData(data)
     writer.Write()
     print "Data written to file:\t " + filename +".vtk"
