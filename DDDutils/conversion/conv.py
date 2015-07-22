@@ -10,6 +10,7 @@ Helper functions to change data from one format to another
 def nxtovtk(G):
 
     """
+    BE PREPARED: THIS TAKES A VEEEEERY LONG TIME, EVEN FOR SMALL DATASETS
     input: networkx MultiGraph
     output: vtk data, POINTS + CELLS
     nodes attributes: position
@@ -70,35 +71,89 @@ def nxtovtk(G):
     print "Conversion done."
     return grid
 
+def nxtovtk_allpoint_only_edges(G_orig,G_clipped):
+    """
+    Write VTK file with all points, but only remaining edges.
+    """
+    
+    print "Converting graph to vtk-object:"
+    # instanciate vtk object
+    grid = vtk.vtkUnstructuredGrid()
+    points = vtk.vtkPoints()
+    points.SetNumberOfPoints(len(G_orig.nodes()))
+
+    i = 0
+
+    map_ids = np.empty([100000, 1])
+    
+    print "\t Storing new node Id's..."
+    for n in G_orig.nodes():
+        nodenr = n
+
+        x = float(G_orig.node[nodenr]['x'])
+        y = float(G_orig.node[nodenr]['y'])
+        z = float(G_orig.node[nodenr]['z'])
+
+        points.InsertPoint(i, (x, y, z))
+        map_ids[n] = i
+
+        
+        i += 1
+
+    # set all points from original dataset as new points
+    grid.SetPoints(points)
+
+    # Allocate storage for cells
+    grid.Allocate(len(G_clipped.edges()))
+    
+    # now add edges from changed structure
+    
+    id_list=vtk.vtkIdList()
+    id_list.Reset()
+
+    for m in G_clipped.edges():
+        for nodeid in m:
+            mapped_id = map_ids[nodeid]
+            id_list.InsertNextId(mapped_id)
+
+        cell_type = 3
+        grid.InsertNextCell(cell_type, id_list)
+        id_list.Reset()
+
+    print "\t\t Done."
+    print "Conversion done. Number of cells:", grid.GetNumberOfCells()
+
+    return grid
+
 
 def vtktonx(data):
-    data = cpnonzerocolor(data)
+    data_nz = cpnonzerocolor(data)
     G = nx.Graph() # change to multigraph if structure needs to be consistent
 
     #nodeids = np.array([[0,data.GetCell(0).GetPointId(0)]])
     #print "Point id0 of cell 0:\t", data.GetCell(0).GetPointId(0)
     #idcntr = 1
-    normal_colors = data.GetCellData().GetScalars()
-    ar0 = data.GetCellData().GetArray(0) # coloring for normals
-    ar1 = data.GetCellData().GetArray(1) # dislocation character
-    ar2 = data.GetCellData().GetArray(2) # burgers index
-    ar3 = data.GetCellData().GetArray(3) # normal index
+    normal_colors = data_nz.GetCellData().GetScalars()
+    ar0 = data_nz.GetCellData().GetArray(0) # coloring for normals
+    ar1 = data_nz.GetCellData().GetArray(1) # dislocation character
+    ar2 = data_nz.GetCellData().GetArray(2) # burgers index
+    ar3 = data_nz.GetCellData().GetArray(3) # normal index
 #    ar4 = data.GetCellData().GetArray(4) # cell ID
     
-    for i in range(data.GetNumberOfCells()):
+    for i in range(data_nz.GetNumberOfCells()):
         #print "colored:\t", i
-        print normal_colors.GetTuple(i)
-        print "0", ar0.GetTuple(i)
-        print "1", ar1.GetTuple(i)
-        print "2", ar2.GetTuple(i)
-        print "3", ar3.GetTuple(i)
+#        print normal_colors.GetTuple(i)
+#        print "0", ar0.GetTuple(i)
+#        print "1", ar1.GetTuple(i)
+#        print "2", ar2.GetTuple(i)
+#        print "3", ar3.GetTuple(i)
         
-        cell = data.GetCell(i)
+        cell = data_nz.GetCell(i)
 
         id0 = cell.GetPointId(0)
-        p1 = data.GetPoint(id0)
+        p1 = data_nz.GetPoint(id0)
         id1 = cell.GetPointId(1)
-        p2 = data.GetPoint(id1)
+        p2 = data_nz.GetPoint(id1)
         distSquared = vtk.vtkMath.Distance2BetweenPoints(p1,p2)
         distance = math.sqrt(distSquared)
         G.add_node(int(id0))
