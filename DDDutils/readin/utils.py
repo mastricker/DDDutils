@@ -13,17 +13,17 @@ def get_dimensions(pathtoinfos):
 
     for line in fileinput.input(pathtoinfos):
 
-        if line.startswith('XLEN'):
+        if line.lstrip().startswith('XLEN'):
             xlen = line.strip().split()[2]
             xlen = float(xlen[0:xlen.rfind(',')])
             
-        elif line.startswith('YLEN'):
+        elif line.lstrip().startswith('YLEN'):
             ylen = line.strip().split()[2]
             ylen = float(ylen[0:ylen.rfind(',')])
             
-        elif line.startswith('ZLEN'):
+        elif line.lstrip().startswith('ZLEN'):
             zlen = line.strip().split()[2]
             zlen = float(zlen[0:zlen.rfind(',')])
-    
+
     return xlen, ylen, zlen
 
