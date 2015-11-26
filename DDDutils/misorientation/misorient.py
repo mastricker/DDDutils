@@ -240,4 +240,72 @@ def get_omega_voxel(data_w):
                 omega_voxel[i,j,k,:,:] = rot_matrix
 
     return omega_voxel
+
+def calculate_gamma(R1, R2):
+    """
+    Calculates the misorientation angle between two given rotation
+    matrices.
+
+    Args:
+        R1,R2 (np.array): 3x3 rotation matrix
+
+    Returns:
+        g (double): misorientation angle in rad
+    """
+
+    Rmis = np.dot(R2,np.linalg.inv(R1))
+
+    val = ( np.trace(Rmis) - 1. ) / 2.
+
+    # val < -1 ----> -1
+    if (val > 1.0):
+        print 'case1',val
+        val = 1.0
+    elif( val < -1.0):
+        print 'case2',val
+        val = -1.0
+        
+    g = np.arccos(val)
+
+    if (np.isnan(g)):
+        g = 0.
+        print 'should not occur: nan error in calculate_gamma'
+
+    return g
     
+def misorientation_wrt_coord(omega,coords):
+    """
+    Returns the misorientation of each voxel with respect to a
+    reference coordinate.
+
+    Args:
+        omega (np.array): Voxel based rotation matrices
+        coords (list(int)): 3 indices in a list
+
+    Returns:
+        misorient (np.array): Misorientation angle of each voxel
+            with respect to given reference voxel.
+    """
+
+    idx = Omega.shape[0]
+    idy = Omega.shape[1]
+    idz = Omega.shape[2]
+  
+    misorient = np.zeros([idx, idy, idz])
+  
+    Rref = omega[coords[0],coords[1],coords[2],:,:]
+
+    for i in range(idx):
+        for j in range(idy):
+            for k in range(idz):
+	        R = Omega[i,j,k,:,:]
+	
+	        gamma, flag_nan = calculate_gamma(Rref, R)
+	
+	        if not flag_nan:
+	            misorient[i,j,k] = rad_to_grad(gamma)
+	        else:
+                    print 'set gamma = 0'
+	            misorient[i,j,k] = 0.
+	  
+  return misorient
