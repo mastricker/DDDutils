@@ -18,12 +18,12 @@ than the average dislocation spacing. Try several discretizations for raw input
 
 import numpy as np
 # relative imports
-import ..crystal 
+import DDDutils.crystal.crystal_helpers as ch
 
 # crystal system, fcc
 
 
-def init_crystal_system(e1,e2,e3):
+def init_crystal_system():
     """
     Return the orientations of the fcc lattice, according to the
     orientation of the specimen. These directions can be used to calculate
@@ -44,12 +44,13 @@ def init_crystal_system(e1,e2,e3):
     with open("../../normals_and_burgers.dat","r") as f:
         m = f.readlines()[0].split()[1:4]
 
-        m1 = float(m[0])
-        m2 = float(m[1])
-        m3 = float(m[2])
+    m1 = ch.grad_to_rad(float(m[0]))
+    m2 = ch.grad_to_rad(float(m[1]))
+    m3 = ch.grad_to_rad(float(m[2]))
+
+    ME = ch.get_euler_matrix(m1,m2,m3)
 
     # labels and directions to project misorientations on
-    label0 = '_noproj'
 
     label11 = '_100'
     label12 = '_010'
@@ -71,6 +72,7 @@ def init_crystal_system(e1,e2,e3):
               label21, label22, label23, label24, label25, label26,
               label31, label32, label33, label34]
 
+    
     orientation11 = np.array([ 1., 0., 0.])
     orientation12 = np.array([ 0., 1., 0.])
     orientation13 = np.array([ 0., 0., 1.])
@@ -94,3 +96,148 @@ def init_crystal_system(e1,e2,e3):
                     orientation34]
     
     orientations = [vec/np.linalg.norm(vec) for vec in orientations]
+
+    orientations_rot = [np.dot(ME,vec) for vec in orientations]
+
+    return labels,orientations_rot
+
+def index_raw_deriv_data(data):
+    """
+    Convert raw data from disloc pos_deriv* to indexed array.
+    The choice which components of the derivatives is also made here.
+    If you want to include the fem elasic part/ disloc elastic part/
+    disloc plastic part
+
+    Args:
+        data (np.array): Raw data from DDD
+
+    Returns:
+        deriv_idx (np.array): indexed raw data
+    """
+
+    data_x = data[:,0]			
+    data_y = data[:,1]
+    data_z = data[:,2]
+    data_x = data_x.tolist()		# convert numpy array to python list
+    data_y = data_y.tolist()
+    data_z = data_z.tolist()
+    data_x = list(set(data_x))		# removing duplicates in List
+    data_y = list(set(data_y))
+    data_z = list(set(data_z))
+    data_x = sorted(data_x)		# sort list
+    data_y = sorted(data_y)
+    data_z = sorted(data_z)
+    
+    idx1 = len(data_x)			
+    idy1 = len(data_y)
+    idz1 = len(data_z)
+
+    deriv_idx = np.zeros([idx1,idy1,idz1,9])
+    
+    delta_x = data_x[1] - data_x[0]		# calculate step size
+    delta_y = data_y[1] - data_y[0]             # for indexing
+    delta_z = data_z[1] - data_z[0]
+
+    for i in range(data.shape[0]):
+        idx = int(round(  data[i,0] / delta_x)) # calculate current index
+        idy = int(round( (data[i,1] - data_y[0]) / delta_y) )# correct offset of y-data
+        idz = int(round(  data[i,2] / delta_z) )
+        
+        du_fem = np.zeros(9) # zeros for elastic part
+#        du_fem = data[i,3:12] # comment in for inclusion of elastic part from fem
+
+        du_del = np.zeros(9)
+        du_del = data[i,12:21]
+        du_dpl = np.zeros(9)
+        du_dpl = data[i,21:30]
+
+        du_tot = du_fem + du_del + du_dpl
+
+        deriv_idx[idx,idy,idz,:] = du_tot
+
+    return deriv_idx
+
+def get_rotation_vector_voxel(data):
+    """
+    Calculate the rotation vector as a mean value for each voxel from 
+    derivatives.
+
+    Args:
+        data (np.array): Indexed displacement derivatives for each voxel.
+
+    Returns:
+        w_voxel (np.array): Rotation vector for each voxel from average
+        displacement gradients.
+    """
+
+    w_voxel = np.empty((data.shape[0]-1,data.shape[1]-1,data.shape[2]-1,4))
+
+    for i in range(data.shape[0]-1):
+        for j in range(data.shape[1]-1):
+            for k in range(data.shape[2]-1):
+
+                # get average displacement gradients per voxel
+                du_sum = np.zeros([1,9])
+
+                du_sum += data[i  ,j  ,k  ,:]
+                du_sum += data[i  ,j+1,k  ,:]
+                du_sum += data[i  ,j  ,k+1,:]
+                du_sum += data[i  ,j+1,k+1,:]
+                du_sum += data[i+1,j  ,k  ,:]
+                du_sum += data[i+1,j+1,k  ,:]
+                du_sum += data[i+1,j  ,k+1,:]
+                du_sum += data[i+1,j+1,k+1,:]
+                
+                du_sum /= 8.
+
+                w = np.empty(3)
+
+                # crossproduct
+                w[0] = du_sum[0,8] - du_sum[0,7]
+                w[1] = du_sum[0,5] - du_sum[0,6]
+                w[2] = du_sum[0,4] - du_sum[0,3]
+
+                w = 0.5*w
+
+                nu = np.linalg.norm(w)
+                w_norm = w/nu
+
+                w_voxel[i, j, k, :] = np.array([w_norm[0], w_norm[1], w_norm[2], nu])
+
+    return w_voxel
+
+def get_omega_voxel(data_w):
+    """
+    Calculates the rotation matrix based on the rotation vector.
+
+    Args:
+        data_w (np.array): Voxel based rotation vector.
+
+    Returns:
+        omega_voxel (np.array): Voxel indexed rotation matrices.
+    """
+
+    idx = data_w.shape[0]
+    idy = data_w.shape[1]
+    idz = data_w.shape[2]
+  
+    omega_voxel = np.empty([idx, idy, idz, 3, 3])
+  
+    for i in range(idx):
+        for j in range(idy):
+            for k in range(idz):
+
+	        Omega = np.ones((3,3))
+                r = data_w[i,j,k,0:3]
+        
+	        nu = data_w[i,j,k,3]
+
+                rot_matrix = np.eye(3)*np.cos(nu) \
+                             + (1-np.cos(nu))*np.outer(r,r) \
+                             + np.sin(nu) \
+                             * np.array ([[0., r[2], -r[1]],[-r[2], 0, r[0]],[r[1], -r[0], 0.]])
+
+                omega_voxel[i,j,k,:,:] = rot_matrix
+
+    return omega_voxel
+    

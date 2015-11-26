@@ -5,6 +5,8 @@ author: Markus Stricker
 Helper functions to deal with crystallographic rotations.
 """
 
+import numpy as np
+
 def grad_to_rad(alpha_deg):
     """ Convert degrees to radians. """
     
