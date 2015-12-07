@@ -56,12 +56,12 @@ def init_crystal_system():
     label12 = '_010'
     label13 = '_001'
 
-    label21 = '_110'
-    label22 = '_101'
-    label23 = '_011'
-    label24 = '_-110'
-    label25 = '_-101'
-    label26 = '_0-11'
+    label21 = '_-101'
+    label22 = '_011'
+    label23 = '_-110'
+    label24 = '_110'
+    label25 = '_01-1'
+    label26 = '_101'
 
     label31 = '_1-1-1'
     label32 = '_111'
@@ -251,6 +251,8 @@ def calculate_gamma(R1, R2):
 
     Returns:
         g (double): misorientation angle in rad
+
+    Taken from ref Zhu (1999) Scripta mater. 42, 37, Eqns. (5)+(6)
     """
 
     Rmis = np.dot(R2,np.linalg.inv(R1))
@@ -258,6 +260,7 @@ def calculate_gamma(R1, R2):
     val = ( np.trace(Rmis) - 1. ) / 2.
 
     # val < -1 ----> -1
+
     if (val > 1.0):
         print 'case1',val
         val = 1.0
@@ -269,43 +272,215 @@ def calculate_gamma(R1, R2):
 
     if (np.isnan(g)):
         g = 0.
-        print 'should not occur: nan error in calculate_gamma'
+        print 'should not occur: nan error in calculate_gamma, set g == 0'
 
-    return g
+    return g, Rmis
     
-def misorientation_wrt_coord(omega,coords):
+def misorientation_wrt_coord(omega,plane_normal,coords,vec_proj=None):
     """
     Returns the misorientation of each voxel with respect to a
     reference coordinate.
 
     Args:
-        omega (np.array): Voxel based rotation matrices
-        coords (list(int)): 3 indices in a list
+        omega (np.array): Voxel based rotation matrices, plane only, sort
+            before calling this function
+        plane_normal (string) : String with either 'x','y',z' to indicate
+            in which plane the misorientation should be evaluated
+        coords (list(int)): 2 indices in a list
+        vec_proj (np.array), optional: Vector to project misorientation on
 
     Returns:
         misorient (np.array): Misorientation angle of each voxel
             with respect to given reference voxel.
     """
 
-    idx = Omega.shape[0]
-    idy = Omega.shape[1]
-    idz = Omega.shape[2]
-  
+    print 'calculating misorientation projected in',vec_proj
+    print 'reference position ', coords
+
+    
+    if plane_normal=='x':
+        idx   = 1
+        listx = [coords[0]]
+        idy   = omega.shape[1]
+        listy = range(idy)
+        idz   = omega.shape[2]
+        listz = range(idz)
+    elif plane_normal=='y':
+        idx = omega.shape[0]
+        listx = range(idx)
+        idy   = 1
+        listy = [coords[1]]
+        idz   = omega.shape[2]
+        listz = range(idz)
+    elif plane_normal=='z':
+        idx   = omega.shape[0]
+        listx = range(idx)
+        idy   = omega.shape[1]
+        listy = range(idy)
+        idz   = 1
+        listz = [coords[2]]
+      
     misorient = np.zeros([idx, idy, idz])
   
     Rref = omega[coords[0],coords[1],coords[2],:,:]
 
-    for i in range(idx):
-        for j in range(idy):
-            for k in range(idz):
-	        R = Omega[i,j,k,:,:]
+    for ix,i in enumerate(listx):
+        for iy,j in enumerate(listy):
+            for iz,k in enumerate(listz):
+
+	        R = omega[i,j,k,:,:]
 	
-	        gamma, flag_nan = calculate_gamma(Rref, R)
+	        gamma, Rmis = calculate_gamma(Rref, R)
+
+                # project in desired direction, if necessary
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+
+                    gamma = np.dot(vec_proj, r)
 	
-	        if not flag_nan:
-	            misorient[i,j,k] = rad_to_grad(gamma)
-	        else:
-                    print 'set gamma = 0'
-	            misorient[i,j,k] = 0.
-	  
-  return misorient
+	        
+	        misorient[ix,iy,iz] = ch.rad_to_grad(gamma)
+	        	  
+    return misorient
+
+
+def misorientation_KAM8_yplane(omega,plane_normal,coords,vec_proj=None):
+    """
+    Returns the misorientation of each voxel with respect its
+    8 neighboring voxels
+
+    Args:
+        omega (np.array): Voxel based rotation matrices, plane only, sort
+            before calling this function
+        plane_normal (string) : String with either 'x','y',z' to indicate
+            in which plane the misorientation should be evaluated
+        coords (list(int)): 2 indices in a list
+        vec_proj (np.array), optional: Vector to project misorientation on
+
+    Returns:
+        misorient (np.array): Misorientation angle of each voxel
+            with respect to each of its 8 neighbor voxels.
+    """
+
+    print 'calculating misorientation projected in',vec_proj
+
+    if plane_normal=='y':
+
+        idx = omega.shape[0]
+        listx = range(1,idx-1)
+        
+        idy   = 1
+        listy = [coords[1]+1]
+        
+        idz   = omega.shape[2]
+        listz = range(1,idz-1)
+        
+    else:
+        print 'not implemented'
+        return
+      
+    KAM8 = np.zeros([idx-2, idy, idz-2])
+
+    for ix,i in enumerate(listx):
+        for iy,j in enumerate(listy):
+            for iz,k in enumerate(listz):
+
+                gamma_sum = 0.
+                Rmis_sum = 0.
+                
+                # average over 8 nearest neighbors
+	        Rref = omega[i,j,k,:,:]
+
+                # lower left
+                R = omega[i-1,j-1,k-1,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                gamma_sum += gamma
+
+                # lower
+                R = omega[i-1,j-1,k,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                gamma_sum += gamma
+
+                # lower right
+                R = omega[i-1,j-1,k+1,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                gamma_sum += gamma
+
+                # left
+                R = omega[i,j-1,k-1,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                gamma_sum += gamma
+
+                # right
+                R = omega[i,j-1,k+1,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                gamma_sum += gamma
+
+                # upper left
+                R = omega[i+1,j-1,k-1,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                gamma_sum += gamma
+
+                # upper
+                R = omega[i+1,j-1,k,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                gamma_sum += gamma
+
+                # upper right
+                R = omega[i+1,j-1,k+1,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                gamma_sum += gamma
+
+                val = gamma/8.
+
+                KAM8[ix,iy,iz] = ch.rad_to_grad(gamma)
+                
+    return KAM8
