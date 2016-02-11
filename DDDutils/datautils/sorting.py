@@ -16,7 +16,7 @@ def correctformonotony(x, sortidx=0):
     """
     Function for correcting data, which has been restarted.
     x : np.array
-    index : otional index for sorting (int)
+    index : optional index for sorting (int)
     
     Assuming the data is in the first index and the second index of x is the column to specify data.
     Example: if x = np.loadtxt('result_sigma_eps.dat'), you have this structure.

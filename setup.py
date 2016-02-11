@@ -2,6 +2,9 @@
 """
 Setup script for Python DDD library.
 Started by M. Stricker, 2015
+
+install as
+python setup.py install --u
 """
 
 from setuptools import setup, find_packages

@@ -617,3 +617,109 @@ def misorientation_wrt_lun_yplane(omega,plane_normal,coords,vec_proj=None):
                 misorient[ix,iy,iz] = ch.rad_to_grad(gamma)
 
     return misorient
+
+def misorientation_wrt_rn_yplane(omega,plane_normal,coords,vec_proj=None):
+    """
+    Returns the misorientation of each voxel with respect its
+    right neighbor.
+
+    Args:
+        omega (np.array): Voxel based rotation matrices, plane only, sort
+            before calling this function
+        plane_normal (string) : String with either 'x','y',z' to indicate
+            in which plane the misorientation should be evaluated
+        coords (list(int)): 2 indices in a list
+        vec_proj (np.array), optional: Vector to project misorientation on
+
+    Returns:
+        misorient (np.array): Misorientation angle of each voxel
+            with respect to its right neighbor.
+    """
+    if plane_normal=='y':
+
+        idx = omega.shape[0]
+        listx = range(0,idx-1)
+        
+        idy   = 1
+        listy = [coords[1]+1]
+        
+        idz   = omega.shape[2]
+        listz = range(0,idz)
+        
+    else:
+        print 'not implemented'
+        return
+      
+    misorient = np.zeros([idx-1, idy, idz])
+    
+    for ix,i in enumerate(listx):
+        for iy,j in enumerate(listy):
+            for iz,k in enumerate(listz):
+
+                # Reference is this pixel
+	        Rref = omega[i,j,k,:,:]
+
+                R = omega[i+1,j-1,k,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = rot_mat_to_rot_vec(Rmis,gamma)#np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                misorient[ix,iy,iz] = ch.rad_to_grad(gamma)
+
+    return misorient
+
+def misorientation_wrt_un_yplane(omega,plane_normal,coords,vec_proj=None):
+    """
+    Returns the misorientation of each voxel with respect its
+    upper neighbor.
+
+    Args:
+        omega (np.array): Voxel based rotation matrices, plane only, sort
+            before calling this function
+        plane_normal (string) : String with either 'x','y',z' to indicate
+            in which plane the misorientation should be evaluated
+        coords (list(int)): 2 indices in a list
+        vec_proj (np.array), optional: Vector to project misorientation on
+
+    Returns:
+        misorient (np.array): Misorientation angle of each voxel
+            with respect to its upper neighbor.
+    """
+    if plane_normal=='y':
+
+        idx = omega.shape[0]
+        listx = range(0,idx)
+        
+        idy   = 1
+        listy = [coords[1]+1]
+        
+        idz   = omega.shape[2]
+        listz = range(0,idz-1)
+        
+    else:
+        print 'not implemented'
+        return
+      
+    misorient = np.zeros([idx, idy, idz-1])
+    
+    for ix,i in enumerate(listx):
+        for iy,j in enumerate(listy):
+            for iz,k in enumerate(listz):
+
+                # Reference is this pixel
+	        Rref = omega[i,j,k,:,:]
+
+                R = omega[i,j-1,k+1,:,:]
+
+                gamma, Rmis = calculate_gamma(Rref, R)
+
+                if vec_proj is not None:
+                    r = rot_mat_to_rot_vec(Rmis,gamma)#np.array([ Rmis[1,0], Rmis[0,2], Rmis[2,1] ])
+                    gamma = np.dot(vec_proj, r)
+
+                misorient[ix,iy,iz] = ch.rad_to_grad(gamma)
+
+    return misorient
