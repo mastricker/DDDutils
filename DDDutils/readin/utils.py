@@ -11,6 +11,8 @@ def get_dimensions(pathtoinfos):
     pathtoinfos: absolute path to start_infos.dat file
     """
 
+    pathtoinfos += '/start_infos.dat'
+
     for line in fileinput.input(pathtoinfos):
 
         if line.lstrip().startswith('XLEN'):
@@ -52,3 +54,26 @@ def get_material_parameters(pathtoinfos):
             a = float( line.strip().split()[2].replace(',','') )
 
     return mu, nu, a
+
+def get_ids_from_simulations(pathtocfg):
+    """
+    Helper function, which returns the correct indices for a given path.
+    
+    pathtocfg : absolute path to simulation config folder
+    """
+
+    dict_init = {'directstrain' : 0, 'frsources' : 1, 'restart7500' : 2}
+    dict_size = {'AR3_1' : 1, 'AR3_2' : 2, 'AR3_3' : 3, 'AR3_4' : 4}
+
+
+    p = pathtocfg.split('/')
+
+    init = p[5]
+    size = p[6]
+    
+
+    id_init = dict_init[init]
+    id_size = dict_size[size]
+    id_dir = int(p[7])
+    
+    return id_init, id_size, id_dir
