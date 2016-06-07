@@ -6,7 +6,7 @@ Helper functions to deal with crystallographic operations.
 """
 
 import numpy as np
-
+import math
 
 # helper, needed for some of the functions below
 n2b = [  [1,4],  [1,5],  [1,6],\
@@ -22,6 +22,17 @@ gsystems = ("A2", "A3", "A6",\
             "C1", "C3", "C5",\
             "D1", "D4", "D6")
 
+gp_normal_ref = np.array([ [ 1., -1., -1.],\
+                           [ 1.,  1.,  1.],\
+                           [-1., -1.,  1.],\
+                           [-1.,  1., -1.] ])
+
+burger_ref = np.array([ [-1., 0., 1.],\
+                        [ 0., 1., 1.],\
+                        [-1., 1., 0.],\
+                        [ 1., 1., 0.],\
+                        [ 0., 1.,-1.],\
+                        [ 1., 0., 1.] ])
 
 ################### FUNCTIONS
 
@@ -179,4 +190,180 @@ def get_schmid_factor(n,b,taxis=np.array([0.,1.,0.])):
     taxis /= np.linalg.norm(taxis)
 
     return np.dot(taxis,b)*np.dot(taxis,n)
+
+
+def get_euler_angles(pathtograin):
+    """
+    Function for reading the Euler angles of a simulation.
+
+    Args: 
+        pathtograin (str): path to simulation folder and desired grain input file.
+
+    Returns:
+        e1,e2,e3 (float): Euler angles from path.
+    """
+
+    e1 = e2 = e3 = 0.
+    with open(pathtograin, 'r') as fin:
+        for i, line in enumerate(fin):
+            if i==0:
+                e1 = float(line.strip().split()[1])
+                e2 = float(line.strip().split()[2])
+                e3 = float(line.strip().split()[3])
+
+
+    return e1, e2, e3
+
     
+    
+def calculate_rotation_matrix_lab_sys(proj_x, proj_z):
+    """
+    Function for calculating the rotation matrix. Assumption:
+    New axis for x and z are given.
+    """
+
+    e1 = np.array([1.,0.,0.])
+    e2 = np.array([0.,1.,0.])
+    e3 = np.array([0.,0.,1.])
+
+    g1 = proj_x / np.linalg.norm(proj_x)
+    g3 = proj_z / np.linalg.norm(proj_z)
+
+    g2 = np.cross(g3,g1)
+    g2 /= np.linalg.norm(g2)
+
+    MEuler = np.array(([np.dot(g1,e1),np.dot(g1,e2),np.dot(g1,e3)],
+                       [np.dot(g2,e1),np.dot(g2,e2),np.dot(g2,e3)],
+                       [np.dot(g3,e1),np.dot(g3,e2),np.dot(g3,e3)]))
+
+
+    return MEuler
+
+# def calculate_rotation_matrix_arbitrary(theta, u):
+#     """
+#     Function for calculating the rotation matrix of a an angle theta
+#     around an arbitrary axis u.
+
+#     Inspiration from:
+#     http://stackoverflow.com/questions/17763655/
+#     rotation-of-a-point-in-3d-about-an-arbitrary-axis-using-python
+
+#     Args:
+#         theta (float): angle in degrees
+
+#         u (np.array, 3): rotation axis
+
+#     Return:
+#         Rotation matrix
+#     """
+
+#     theta = grad_to_rad(theta)
+#     u /= np.linalg.norm(u)
+
+#     return [[np.cos(theta) + u[0]**2 * (1-np.cos(theta)), 
+#              u[0] * u[1] * (1-np.cos(theta)) - u[2] * np.sin(theta), 
+#              u[0] * u[2] * (1 - np.cos(theta)) + u[1] * np.sin(theta)],
+#             [u[0] * u[1] * (1-np.cos(theta)) - u[2] * np.sin(theta),
+#              np.cos(theta) + u[1]**2 * (1-np.cos(theta)),
+#              u[1] * u[2] * (1 - np.cos(theta)) + u[0] * np.sin(theta)],
+#             [u[0] * u[2] * (1-np.cos(theta)) - u[1] * np.sin(theta),
+#              u[1] * u[2] * (1-np.cos(theta)) - u[0] * np.sin(theta),
+#              np.cos(theta) + u[2]**2 * (1-np.cos(theta))]]
+
+def calculate_rotation_matrix_arbitrary(theta, axis):
+    """
+    Return the rotation matrix associated with counterclockwise rotation about
+    the given axis by theta radians.
+
+    Inspiration:
+    http://stackoverflow.com/questions/6802577/python-rotation-of-3d-vector
+
+    Args:
+        theta (float): angle in degrees
+
+        axis (np.array, 3): rotation axis
+
+    Return:
+        Rotation matrix
+    """
+    axis = np.asarray(axis)
+    theta = np.asarray(grad_to_rad(theta))
+    axis = axis/math.sqrt(np.dot(axis, axis))
+    a = math.cos(theta/2.0)
+    b, c, d = -axis*math.sin(theta/2.0)
+    aa, bb, cc, dd = a*a, b*b, c*c, d*d
+    bc, ad, ac, ab, bd, cd = b*c, a*d, a*c, a*b, b*d, c*d
+
+    return np.array([[aa+bb-cc-dd, 2*(bc+ad), 2*(bd-ac)],
+                     [2*(bc-ad), aa+cc-bb-dd, 2*(cd+ab)],
+                     [2*(bd+ac), 2*(cd-ab), aa+dd-bb-cc]])
+
+def get_intersection_lines(vec,gp_normals):
+    
+    vec_intersect = np.empty(gp_normals.shape)
+
+    for i in range(gp_normals.shape[0]):
+        gp_n = gp_normals[i,:]
+        
+        dir_intersect = np.cross(vec,gp_n)
+        
+        vec_intersect[i,:] = dir_intersect
+
+
+    return vec_intersect
+
+
+def get_rotation_matrix_with_proj(h1,g1,h2,g2):
+    """
+    h1: (new) reference x
+    g1: direction to be projected on x
+
+    h2: (new) reference y
+    g2: direction to be projected on y
+    """
+
+    e1 = np.array([ 1., 0., 0.])
+    e2 = np.array([ 0., 1., 0.])
+    e3 = np.array([ 0., 0., 1.])
+
+    h1 /= np.linalg.norm(h1)
+    g1 /= np.linalg.norm(g1)
+
+    h2 /= np.linalg.norm(h2)
+    g2 /= np.linalg.norm(g2)
+
+    h3 = np.cross(h1,h2)
+    g3 = np.cross(g1,g2)
+
+    MEuler_g_to_e = np.array(([np.dot(g1,e1),np.dot(g1,e2),np.dot(g1,e3)],
+                          [np.dot(g2,e1),np.dot(g2,e2),np.dot(g2,e3)],
+                          [np.dot(g3,e1),np.dot(g3,e2),np.dot(g3,e3)]))
+
+    MEuler_h_to_e = np.array(([np.dot(h1,e1),np.dot(h1,e2),np.dot(h1,e3)],
+                              [np.dot(h2,e1),np.dot(h2,e2),np.dot(h2,e3)],
+                              [np.dot(h3,e1),np.dot(h3,e2),np.dot(h3,e3)]))
+    
+    MEuler_e_to_h = MEuler_h_to_e.transpose()
+
+    h1_new0 = np.dot(MEuler_g_to_e, e1)
+    h2_new0 = np.dot(MEuler_g_to_e, e2)
+    h3_new0 = np.dot(MEuler_g_to_e, e3)
+    
+    h1_new = np.dot(MEuler_e_to_h, h1_new0)
+    h2_new = np.dot(MEuler_e_to_h, h2_new0)
+    h3_new = np.dot(MEuler_e_to_h, h3_new0)
+
+    MEuler_h_new_to_e = np.array(([np.dot(h1_new,e1),
+                                   np.dot(h1_new,e2),
+                                   np.dot(h1_new,e3)],
+                                  [np.dot(h2_new,e1),
+                                   np.dot(h2_new,e2),
+                                   np.dot(h2_new,e3)],
+                                  [np.dot(h3_new,e1),
+                                   np.dot(h3_new,e2),
+                                   np.dot(h3_new,e3)]))
+
+    M = MEuler_h_new_to_e.transpose()
+
+    return M
+        

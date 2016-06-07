@@ -11,8 +11,14 @@ def get_dimensions(pathtoinfos):
     pathtoinfos: absolute path to start_infos.dat file
     """
 
-    pathtoinfos += '/start_infos.dat'
+    print '---', pathtoinfos[-15:]
 
+    if pathtoinfos[-15:] != 'start_infos.dat':
+        if pathtoinfos[-16] == '/':
+            pathtoinfos += 'start_infos.dat'
+        else:
+            pathtoinfos += '/start_infos.dat'
+        
     for line in fileinput.input(pathtoinfos):
 
         if line.lstrip().startswith('XLEN'):

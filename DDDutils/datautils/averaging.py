@@ -88,3 +88,17 @@ def movingaverage(interval, window_size):
     conv[-window_size:] = bound_corr
 
     return conv
+
+
+def mirror_symmetry_average(data):
+    """
+    Returns a symmetric averga (as e.g. in crystal symmetry).
+
+    Args:
+        data (np.array NX1): Array with values
+
+    Returns:
+        mirror averaged value
+    """
+
+    return (data+data[::-1])/2.

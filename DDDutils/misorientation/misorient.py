@@ -24,6 +24,15 @@ import DDDutils.crystal.crystal_helpers as ch
 
 # helper functions
 
+def grad_to_rad(alpha_deg):		# convert degrees to radians
+    alpha_rad = (alpha_deg/180.)*np.pi
+    return alpha_rad
+
+
+def rad_to_grad(alpha_rad):		# convert radians to degrees
+    alpha_deg = (alpha_rad*180.)/np.pi
+    return alpha_deg
+
 def rot_mat_to_rot_vec(R,gamma):
     """
     Return the rotation vector which is the axis and angle of a rotation
@@ -170,12 +179,14 @@ def index_raw_deriv_data(data):
         idz = int(round(  data[i,2] / delta_z) )
         
         du_fem = np.zeros(9) # zeros for elastic part
-#        du_fem = data[i,3:12] # comment in for inclusion of elastic part from fem
+        # comment in for inclusion of elastic part from fem
+        # du_fem = data[i,3:12] 
 
         du_del = np.zeros(9)
         du_del = data[i,12:21]
         du_dpl = np.zeros(9)
-        #du_dpl = data[i,21:30]
+        # this one is needed!
+        du_dpl = data[i,21:30]
 
         du_tot = du_fem + du_del + du_dpl
 
@@ -192,8 +203,8 @@ def get_rotation_vector_voxel(data):
         data (np.array): Indexed displacement derivatives for each voxel.
 
     Returns:
-        w_voxel (np.array): Rotation vector for each voxel from average
-        displacement gradients.
+    w_voxel (np.array): Normalized rotation vector for each voxel from 
+                        average displacement gradients and rotation angle.
     """
 
     w_voxel = np.empty((data.shape[0]-1,data.shape[1]-1,data.shape[2]-1,4))
@@ -232,7 +243,7 @@ def get_rotation_vector_voxel(data):
 
     return w_voxel
 
-def get_omega_voxel(data_w):
+def get_omega_voxel_3d(data_w):
     """
     Calculates the rotation matrix based on the rotation vector.
 
@@ -261,9 +272,46 @@ def get_omega_voxel(data_w):
                 rot_matrix = np.eye(3)*np.cos(nu) \
                              + (1-np.cos(nu))*np.outer(r,r) \
                              + np.sin(nu) \
-                             * np.array ([[0., r[2], -r[1]],[-r[2], 0, r[0]],[r[1], -r[0], 0.]])
+                             * np.array ([[   0.,  r[2], -r[1]],\
+                                          [-r[2],    0.,  r[0]],\
+                                          [ r[1], -r[0],    0.]])
 
                 omega_voxel[i,j,k,:,:] = rot_matrix
+
+    return omega_voxel
+
+def get_omega_voxel_2d(data_w):
+    """
+    Calculates the rotation matrix based on the rotation vector.
+
+    Args:
+        data_w (np.array): Voxel based rotation vector.
+
+    Returns:
+        omega_voxel (np.array): Voxel indexed rotation matrices.
+    """
+
+    idx = data_w.shape[0]
+    idy = data_w.shape[1]
+  
+    omega_voxel = np.empty([idx, idy, 3, 3])
+  
+    for i in range(idx):
+        for j in range(idy):
+            
+            Omega = np.ones((3,3))
+            r = data_w[i,j,0:3]
+            
+            nu = data_w[i,j,3]
+            
+            rot_matrix = np.eye(3)*np.cos(nu) \
+                         + (1-np.cos(nu))*np.outer(r,r) \
+                         + np.sin(nu) \
+                         * np.array ([[   0.,  r[2], -r[1]],\
+                                      [-r[2],    0.,  r[0]],\
+                                      [ r[1], -r[0],    0.]])
+            
+            omega_voxel[i,j,:,:] = rot_matrix
 
     return omega_voxel
 
@@ -723,3 +771,129 @@ def misorientation_wrt_un_yplane(omega,plane_normal,coords,vec_proj=None):
                 misorient[ix,iy,iz] = ch.rad_to_grad(gamma)
 
     return misorient
+
+
+
+def calculate_gamma_and_w(Ma, Mb):
+    """
+    Function for calculating the angle between two rotation matrices and
+    additionally the inverse Rodrigues Rotation formula.
+    
+    Angle with reference:
+    Zhu (1999) Scripta mater. 42, 37, Eqns. (5)+(6)
+    
+    Inverse Rodrigues:
+    http://math.stackexchange.com/questions/83874/
+    efficient-and-accurate-numerical-implementation-
+    of-the-inverse-rodrigues-rotatio
+    
+    Args:
+        Ma, Mb (np.array, 3X3): two rotation matrices
+
+    Returns:
+        gamma (float)       : Misorientation angle between the two
+                              rotation matrices
+        w    (np.array, 3X1): Normalized axis of rotation
+
+    """
+
+    M = np.dot(Mb,np.linalg.inv(Ma))
+
+    t = np.sum(np.diag(M)) # trace
+    r = np.array([M[2,1] - M[1,2],\
+                  M[0,2] - M[2,0],\
+                  M[1,0] - M[0,1]])
+
+
+    val = (M[0,0] + M[1,1] + M[2,2] - 1.) / 2.
+
+    # val < -1 ----> -1
+    if (val > 1.0):
+        print 'case1',val
+        val = 1.0
+    elif( val < -1.0):
+        print 'case2',val
+        val = -1.0
+        
+    g = np.arccos(val)
+
+    # if (np.isnan(g)):
+    #     g = 0.
+    #     print 'nan error in calculate_gamma'
+
+    # parameter for determining the quaternion
+    eps = 1e-10
+
+    if (t >= 3. - eps):
+        w = (0.5 - (t - 3.)/12.) * r
+
+    elif ( (3. - eps > t) and\
+           (t > -1. + eps)):
+        w = g/(2. * np.sin(g)) * r
+
+    elif (t <= -1. + eps):
+        a = np.argmax(np.diag(M))
+        b = ((a+2) % 3) - 1
+        c = ((a+3) % 3) - 1
+        Raa = M[a,a]
+        Rbb = M[b,b]
+        Rcc = M[c,c]
+
+        s = np.sqrt(Raa - Rbb - Rcc + 1.)
+        
+        v = np.array([s/2.,\
+                      (M[b,a] + M[a,b]) / (2.*s),\
+                      (M[c,a] + M[a,c]) / (2.*s)])
+
+        w = np.pi * v / np.linalg.norm(v)
+
+    return g, w
+
+def misorientation_wrt_coord_complete_arrows(Omega,coords):
+    # calculate misorientation with respect to voxel at given coordinates
+
+    idx = Omega.shape[0]
+    idy = Omega.shape[1]
+    idz = Omega.shape[2]
+    
+    misorient = np.zeros([idx, idy, idz])
+    arrows = np.zeros([idx, idy, idz, 4])
+    
+    Mref = Omega[coords[0],coords[1],coords[2],:,:]
+    
+    for i in range(idx):
+        for j in range(idy):
+            for k in range(idz):
+                M2 = Omega[i,j,k,:,:]
+                
+                gamma, w = calculate_gamma_and_w(Mref, M2)
+                
+                misorient[i,j,k] = rad_to_grad(gamma)
+                arrows[i,j,k,0:3] = w
+                arrows[i,j,k,3] = gamma
+
+
+                # print 'Original, norm/angle', gamma
+                # print 'norm(w)', np.linalg.norm(w), w
+                                    
+    return misorient,arrows
+
+def misorientation_wrt_rightup_neighbor(Omega):    
+    
+    n = Omega.shape[0]
+    m = Omega.shape[1]
+    
+    misorient_rightup_neigh = np.zeros([n-1,m-1])
+
+    for i in range(n-1):
+        for j in range(m-1):
+            M1 = Omega[i  ,j,:,:]
+            M2 = Omega[i+1,j+1,:,:]
+
+            gamma, _ = calculate_gamma(M1, M2)
+            
+            misorient_rightup_neigh[i,j] += rad_to_grad(gamma)
+
+    misorient_rightup_neigh /= 2.
+
+    return misorient_rightup_neigh
